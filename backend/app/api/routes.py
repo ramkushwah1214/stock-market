@@ -13,21 +13,28 @@ from app.services.market_service import (
 )
 from app.services.news_service_v2 import fetch_news
 from app.services.stock_data import analyze_stock
+from app.services.yahoo_finance_service import (
+    get_history,
+    get_info,
+    get_quote,
+    search_symbols,
+)
 
 
 api = Blueprint("api", __name__)
 
 
 @api.route("/", methods=["GET"])
+@api.route("/api", methods=["GET"])
 def home():
     return jsonify({
         "message": "AI Invest Flask backend is running",
         "endpoints": [
-            "/analyze?symbol=TCS",
-            "/chart?symbol=RELIANCE&range=1m",
-            "/movers?type=gainers",
-            "/sectors",
-            "/chat",
+            "/api/analyze?symbol=TCS",
+            "/api/chart?symbol=RELIANCE&range=1m",
+            "/api/movers?type=gainers",
+            "/api/sectors",
+            "/api/chat",
         ],
     })
 
@@ -39,6 +46,7 @@ def health():
 
 
 @api.route("/analyze", methods=["GET"])
+@api.route("/api/analyze", methods=["GET"])
 def analyze():
     symbol = request.args.get("symbol", "").strip()
     if not symbol:
@@ -47,6 +55,7 @@ def analyze():
 
 
 @api.route("/chart", methods=["GET"])
+@api.route("/api/chart", methods=["GET"])
 def chart():
     symbol = request.args.get("symbol", "").strip()
     range_name = request.args.get("range", "1m")
@@ -126,3 +135,29 @@ def forgot_password():
 @api.route("/api/reset-password", methods=["POST"])
 def reset_password():
     return jsonify({"message": "Password reset request accepted."})
+
+
+@api.route("/api/yahoo/quote/<path:symbol>", methods=["GET"])
+def yahoo_quote(symbol):
+    return jsonify(get_quote(symbol))
+
+
+@api.route("/api/yahoo/history/<path:symbol>", methods=["GET"])
+def yahoo_history(symbol):
+    return jsonify(
+        get_history(
+            symbol,
+            period=request.args.get("period", "1mo"),
+            interval=request.args.get("interval", "1d"),
+        )
+    )
+
+
+@api.route("/api/yahoo/info/<path:symbol>", methods=["GET"])
+def yahoo_info(symbol):
+    return jsonify(get_info(symbol))
+
+
+@api.route("/api/yahoo/search", methods=["GET"])
+def yahoo_search():
+    return jsonify(search_symbols(request.args.get("q", ""), int(request.args.get("limit", 10))))

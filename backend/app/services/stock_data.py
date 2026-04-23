@@ -1,4 +1,5 @@
-import yfinance as yf
+import math
+
 from werkzeug.exceptions import BadRequest, NotFound
 
 from app.models.lstm_model import predict_trend
@@ -6,8 +7,8 @@ from app.services.decision_service import build_decision
 from app.services.indicator_service import add_indicators
 from app.services.news_service_v2 import fetch_news
 from app.services.sentiment_service import analyze_articles
-from app.services.market_service import _fallback_history
 from app.services.symbol_service import company_query, display_symbol, resolve_symbol
+from app.services.yfinance_client import yf
 
 
 def get_price_history(symbol, period="1y", interval="1d"):
@@ -15,7 +16,7 @@ def get_price_history(symbol, period="1y", interval="1d"):
     try:
         history = yf.Ticker(resolved).history(period=period, interval=interval)
     except Exception as exc:
-        history = _fallback_history(resolved)
+        raise NotFound(f"Could not load market data for {symbol}") from exc
 
     if history.empty:
         raise NotFound(f"No market data found for {symbol}")
@@ -30,6 +31,10 @@ def analyze_stock(symbol):
     previous = history.iloc[-2] if len(history) > 1 else latest
     price = float(latest["Close"])
     previous_close = float(previous["Close"])
+
+    if any(math.isnan(value) for value in (price, previous_close)):
+        raise NotFound(f"Incomplete market data found for {symbol}")
+
     change = price - previous_close
     percent = (change / previous_close) * 100 if previous_close else 0
 
@@ -39,6 +44,9 @@ def analyze_stock(symbol):
 
     rsi = float(latest["RSI"])
     moving_average = float(latest["MA20"])
+    if any(math.isnan(value) for value in (rsi, moving_average)):
+        raise NotFound(f"Incomplete indicator data found for {symbol}")
+
     recommendation, confidence, risk, explanation = build_decision(
         rsi,
         trend,

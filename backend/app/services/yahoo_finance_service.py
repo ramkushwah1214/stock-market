@@ -1,10 +1,10 @@
 import math
 
-import yfinance as yf
 from werkzeug.exceptions import BadRequest, NotFound
 
 from app.services.market_service import _number
 from app.services.symbol_service import display_symbol, resolve_symbol
+from app.services.yfinance_client import yf
 
 
 DEFAULT_HISTORY_PERIOD = "1mo"

@@ -13,9 +13,10 @@ export default function StockChart({ symbol, title, height = 300, showFilters = 
   const [timeRange, setTimeRange] = useState("1D");
   const { data, loading, error } = useStockData(symbol, timeRange);
   const chartData = Array.isArray(data) ? data : [];
+  const usesFullHeight = typeof height === 'string' && height.trim() === '100%';
 
   return (
-    <div className="w-full h-full flex flex-col">
+    <div className="w-full h-full min-w-0 min-h-0 flex flex-col">
       {(title || showFilters) && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           {title && <h3 className="text-lg font-bold text-gray-900 dark:text-white">{title}</h3>}
@@ -40,7 +41,10 @@ export default function StockChart({ symbol, title, height = 300, showFilters = 
         </div>
       )}
 
-      <div style={{ height }} className="w-full relative">
+      <div
+        style={usesFullHeight ? undefined : { height }}
+        className={`w-full relative min-w-0 ${usesFullHeight ? 'flex-1 min-h-[220px]' : ''}`}
+      >
         {loading && chartData.length === 0 ? (
           <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-gray-900/50 z-10 rounded-xl">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>

@@ -1,7 +1,6 @@
 import math
-from functools import lru_cache
 
-import yfinance as yf
+from werkzeug.exceptions import NotFound
 
 from app.services.symbol_service import (
     INDEX_SYMBOLS,
@@ -9,6 +8,7 @@ from app.services.symbol_service import (
     display_symbol,
     resolve_symbol,
 )
+from app.services.yfinance_client import yf
 
 
 RANGE_MAP = {
@@ -92,24 +92,29 @@ def chart_data(symbol, range_name="1m"):
 
     try:
         hist = yf.Ticker(resolved).history(period=period, interval=interval)
-    except Exception:
-        hist = _fallback_history(resolved)
+    except Exception as exc:
+        raise NotFound(f"Could not load chart data for {symbol}") from exc
 
     if hist.empty:
-        hist = _fallback_history(resolved)
+        raise NotFound(f"No chart data found for {symbol}")
 
     rows = []
     for index, row in hist.tail(250).iterrows():
+        close_price = _number(row.get("Close"))
+        if close_price is None:
+            continue
         rows.append({
             "date": index.isoformat(),
             "time": index.strftime("%H:%M") if period == "1d" else index.strftime("%d %b"),
             "open": _number(row.get("Open")),
             "high": _number(row.get("High")),
             "low": _number(row.get("Low")),
-            "close": _number(row.get("Close")),
-            "price": _number(row.get("Close")),
+            "close": close_price,
+            "price": close_price,
             "volume": int(row.get("Volume", 0) or 0),
         })
+    if not rows:
+        raise NotFound(f"No valid chart data found for {symbol}")
     return rows
 
 
@@ -119,24 +124,25 @@ def quote(symbol):
         ticker = yf.Ticker(resolved)
         hist = ticker.history(period="5d")
         info = _safe_info(ticker)
-    except Exception:
-        hist = _fallback_history(resolved)
-        info = {}
+    except Exception as exc:
+        raise NotFound(f"Could not load quote data for {symbol}") from exc
 
     if hist.empty:
-        hist = _fallback_history(resolved)
+        raise NotFound(f"No quote data found for {symbol}")
 
     latest = hist.iloc[-1]
     previous = hist.iloc[-2] if len(hist) > 1 else latest
     price = float(latest["Close"])
     prev_close = float(previous["Close"])
+    if any(math.isnan(value) for value in (price, prev_close)):
+        raise NotFound(f"Incomplete quote data found for {symbol}")
     change = price - prev_close
     percent = (change / prev_close) * 100 if prev_close else 0
 
     return {
         "symbol": display_symbol(resolved),
         "resolvedSymbol": resolved,
-        "name": info.get("longName") or info.get("shortName") or display_symbol(resolved),
+        "name": info.get("longName") or info.get("shortName"),
         "price": round(price, 2),
         "currentPrice": round(price, 2),
         "change": round(change, 2),
@@ -146,7 +152,7 @@ def quote(symbol):
         "high": _number(latest["High"]),
         "low": _number(latest["Low"]),
         "volume": int(latest.get("Volume", 0) or 0),
-        "sector": info.get("sector") or "Other",
+        "sector": info.get("sector"),
         "mcap": _format_market_cap(info.get("marketCap")),
         "marketCap": info.get("marketCap"),
         "peRatio": info.get("trailingPE"),
@@ -271,7 +277,7 @@ def index_dashboard(index_name, range_name="1D"):
 
 
 def market_news_response(news):
-    return {"news": news if news else FALLBACK_NEWS}
+    return {"news": news or []}
 
 
 def _safe_info(ticker):
@@ -283,7 +289,7 @@ def _safe_info(ticker):
 
 def _number(value):
     if value is None or (isinstance(value, float) and math.isnan(value)):
-        return 0
+        return None
     return round(float(value), 2)
 
 
@@ -295,26 +301,3 @@ def _format_market_cap(value):
     if value >= 1e7:
         return f"{value / 1e7:.2f}Cr"
     return str(value)
-
-
-@lru_cache(maxsize=256)
-def _fallback_base(symbol):
-    return 500 + sum(ord(char) for char in symbol) % 4000
-
-
-def _fallback_history(symbol):
-    import pandas as pd
-
-    base = _fallback_base(symbol)
-    index = pd.date_range(end=pd.Timestamp.utcnow(), periods=30, freq="D")
-    rows = []
-    for offset, date in enumerate(index):
-        close = base + offset * 2
-        rows.append({
-            "Open": close - 4,
-            "High": close + 8,
-            "Low": close - 10,
-            "Close": close,
-            "Volume": 0,
-        })
-    return pd.DataFrame(rows, index=index)
