@@ -1,9 +1,11 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, session
 
 from app.services.chat_service import answer
+from app.services.auth_service import authenticate_user, get_user_by_email, register_user
 from app.services.market_service import (
     chart_data,
     compare,
+    fallback_news,
     index_dashboard,
     market_news_response,
     movers,
@@ -43,6 +45,45 @@ def home():
 @api.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok"})
+
+
+@api.route("/api/auth/register", methods=["POST"])
+def auth_register():
+    payload = request.get_json(silent=True) or {}
+    user = register_user(
+        payload.get("fullname", ""),
+        payload.get("email", ""),
+        payload.get("password", ""),
+        payload.get("investorType", ""),
+    )
+    session["user_email"] = user["email"]
+    return jsonify({"message": "Registration successful", "user": user}), 201
+
+
+@api.route("/api/auth/login", methods=["POST"])
+def auth_login():
+    payload = request.get_json(silent=True) or {}
+    user = authenticate_user(
+        payload.get("email", ""),
+        payload.get("password", ""),
+    )
+    session["user_email"] = user["email"]
+    return jsonify({"message": "Login successful", "user": user})
+
+
+@api.route("/api/auth/logout", methods=["POST"])
+def auth_logout():
+    session.pop("user_email", None)
+    return jsonify({"message": "Logout successful"})
+
+
+@api.route("/api/auth/me", methods=["GET"])
+def auth_me():
+    email = session.get("user_email")
+    user = get_user_by_email(email)
+    if user is None:
+        return jsonify({"user": None}), 401
+    return jsonify({"user": user})
 
 
 @api.route("/analyze", methods=["GET"])
@@ -117,7 +158,8 @@ def info(symbol):
 
 @api.route("/api/market-data", methods=["GET"])
 def market_data():
-    return jsonify(market_news_response(fetch_news("Indian stock market", page_size=10)))
+    news = fetch_news("Indian stock market", page_size=10)
+    return jsonify(market_news_response(news or fallback_news()))
 
 
 @api.route("/api/compare", methods=["GET"])

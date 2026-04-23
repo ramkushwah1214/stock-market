@@ -1,4 +1,5 @@
 import math
+from datetime import datetime, timezone
 
 from werkzeug.exceptions import NotFound
 
@@ -49,6 +50,7 @@ FALLBACK_NEWS = [
         "sentiment": "Neutral",
         "url": "",
         "link": "",
+        "publishedAt": "",
     },
     {
         "title": "Banking, IT, and energy stocks stay in focus",
@@ -57,6 +59,7 @@ FALLBACK_NEWS = [
         "sentiment": "Positive",
         "url": "",
         "link": "",
+        "publishedAt": "",
     },
     {
         "title": "Volatility remains a key risk for short-term traders",
@@ -65,6 +68,7 @@ FALLBACK_NEWS = [
         "sentiment": "Neutral",
         "url": "",
         "link": "",
+        "publishedAt": "",
     },
 ]
 
@@ -83,6 +87,12 @@ FALLBACK_MOVERS = {
         {"symbol": "AXISBANK", "name": "Axis Bank", "price": 1088.15, "change": -0.39, "percent": -0.39},
         {"symbol": "MARUTI", "name": "Maruti Suzuki", "price": 12050.0, "change": -0.25, "percent": -0.25},
     ],
+}
+
+FALLBACK_INDEXES = {
+    "NIFTY": {"price": 22435.65, "change": 148.2, "percent": 0.67, "high": 22512.1, "low": 22301.4, "volume": 0},
+    "SENSEX": {"price": 73792.31, "change": 462.8, "percent": 0.63, "high": 73920.5, "low": 73441.9, "volume": 0},
+    "BANKNIFTY": {"price": 48126.7, "change": 284.55, "percent": 0.59, "high": 48240.2, "low": 47888.4, "volume": 0},
 }
 
 
@@ -124,6 +134,7 @@ def quote(symbol):
         ticker = yf.Ticker(resolved)
         hist = ticker.history(period="5d")
         info = _safe_info(ticker)
+        fast_info = _safe_fast_info(ticker)
     except Exception as exc:
         raise NotFound(f"Could not load quote data for {symbol}") from exc
 
@@ -132,8 +143,17 @@ def quote(symbol):
 
     latest = hist.iloc[-1]
     previous = hist.iloc[-2] if len(hist) > 1 else latest
-    price = float(latest["Close"])
-    prev_close = float(previous["Close"])
+    price = _preferred_number(
+        _fast_info_value(fast_info, "lastPrice"),
+        info.get("regularMarketPrice"),
+        latest.get("Close"),
+    )
+    prev_close = _preferred_number(
+        _fast_info_value(fast_info, "previousClose"),
+        _fast_info_value(fast_info, "regularMarketPreviousClose"),
+        info.get("regularMarketPreviousClose"),
+        previous.get("Close"),
+    )
     if any(math.isnan(value) for value in (price, prev_close)):
         raise NotFound(f"Incomplete quote data found for {symbol}")
     change = price - prev_close
@@ -149,12 +169,12 @@ def quote(symbol):
         "dayChange": round(change, 2),
         "percent": round(percent, 2),
         "dayChangePercent": round(percent, 2),
-        "high": _number(latest["High"]),
-        "low": _number(latest["Low"]),
-        "volume": int(latest.get("Volume", 0) or 0),
+        "high": _number(_preferred_number(_fast_info_value(fast_info, "dayHigh"), info.get("regularMarketDayHigh"), latest.get("High"))),
+        "low": _number(_preferred_number(_fast_info_value(fast_info, "dayLow"), info.get("regularMarketDayLow"), latest.get("Low"))),
+        "volume": int(_preferred_number(_fast_info_value(fast_info, "lastVolume"), info.get("regularMarketVolume"), latest.get("Volume"), default=0) or 0),
         "sector": info.get("sector"),
-        "mcap": _format_market_cap(info.get("marketCap")),
-        "marketCap": info.get("marketCap"),
+        "mcap": _format_market_cap(_preferred_number(_fast_info_value(fast_info, "marketCap"), info.get("marketCap"))),
+        "marketCap": _preferred_number(_fast_info_value(fast_info, "marketCap"), info.get("marketCap")),
         "peRatio": info.get("trailingPE"),
         "dividendYield": info.get("dividendYield"),
         "profitGrowth": info.get("earningsGrowth"),
@@ -250,8 +270,24 @@ def compare(symbols, range_name="1m"):
 
 def index_dashboard(index_name, range_name="1D"):
     symbol = INDEX_SYMBOLS.get(index_name.upper(), index_name)
-    item = quote(symbol)
-    data = chart_data(symbol, range_name)
+    fallback = FALLBACK_INDEXES.get(index_name.upper(), FALLBACK_INDEXES["NIFTY"])
+
+    try:
+        item = quote(symbol)
+    except Exception:
+        item = {
+            "price": fallback["price"],
+            "change": fallback["change"],
+            "percent": fallback["percent"],
+            "high": fallback["high"],
+            "low": fallback["low"],
+            "volume": fallback["volume"],
+        }
+
+    try:
+        data = chart_data(symbol, range_name)
+    except Exception:
+        data = fallback_chart_data(fallback["price"], range_name)
 
     return {
         "symbol": index_name.upper(),
@@ -272,12 +308,44 @@ def index_dashboard(index_name, range_name="1D"):
             "advanceDecline": "Live breadth varies by exchange session",
             "volatility": "Moderate",
         },
-        "news": FALLBACK_NEWS,
+        "news": fallback_news(),
     }
 
 
 def market_news_response(news):
-    return {"news": news or []}
+    return {"news": news or fallback_news()}
+
+
+def fallback_news():
+    published_at = datetime.now(timezone.utc).isoformat()
+    return [
+        {**article, "publishedAt": article.get("publishedAt") or published_at}
+        for article in FALLBACK_NEWS
+    ]
+
+
+def fallback_chart_data(base_price, range_name="1D"):
+    if str(range_name).upper() == "1D":
+        points = ["09:15", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00"]
+    elif str(range_name).upper() == "1W":
+        points = ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    elif str(range_name).upper() == "1M":
+        points = ["01 Apr", "05 Apr", "10 Apr", "15 Apr", "20 Apr", "25 Apr", "30 Apr"]
+    else:
+        points = ["Jan", "Mar", "May", "Jul", "Sep", "Nov"]
+
+    offsets = [-0.8, -0.25, 0.15, -0.1, 0.4, 0.7, 0.55]
+    rows = []
+    for index, label in enumerate(points):
+        offset = offsets[index % len(offsets)]
+        price = round(base_price + offset * max(base_price * 0.0025, 12), 2)
+        rows.append({
+            "time": label,
+            "price": price,
+            "close": price,
+            "date": label,
+        })
+    return rows
 
 
 def _safe_info(ticker):
@@ -287,10 +355,39 @@ def _safe_info(ticker):
         return {}
 
 
+def _safe_fast_info(ticker):
+    try:
+        return ticker.fast_info or {}
+    except Exception:
+        return {}
+
+
+def _fast_info_value(fast_info, key):
+    if fast_info is None:
+        return None
+    getter = getattr(fast_info, "get", None)
+    if callable(getter):
+        try:
+            return getter(key)
+        except Exception:
+            return None
+    return None
+
+
 def _number(value):
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return None
     return round(float(value), 2)
+
+
+def _preferred_number(*values, default=None):
+    for value in values:
+        if value is None:
+            continue
+        if isinstance(value, float) and math.isnan(value):
+            continue
+        return float(value)
+    return default
 
 
 def _format_market_cap(value):

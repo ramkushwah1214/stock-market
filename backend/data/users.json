@@ -1,0 +1,32 @@
+[
+  {
+    "id": "3a8d3e1a-8b2b-47e5-ae95-bddf1c372ae8",
+    "fullname": "Test User",
+    "email": "test_db116977@example.com",
+    "passwordHash": "scrypt:32768:8:1$UZNeByIk7lIYVA1V$d5c3fb6bbfe7697c2a79be66a281796bde9a65c065fecf17e63d5f9acc74f204042538788f3493f711cdd635f01b7bca826cf525a73a141705b439ff4116440c",
+    "createdAt": "2026-04-23T17:34:47.002357+00:00"
+  },
+  {
+    "id": "969343b3-d498-4110-b448-2b89d5e4aabf",
+    "fullname": "XYZ",
+    "email": "xyz@gmail.com",
+    "passwordHash": "scrypt:32768:8:1$6BHZMYsht1ggXCEu$a4cc50053e39c88c97e10e1a62376dc28f6b013eec3f9e29405e878707f0c1ab2da511488c2ec5df5d0aa653b0aef28124cdd8e26d64dd8c8e683d8f854c037e",
+    "createdAt": "2026-04-23T18:12:34.830210+00:00"
+  },
+  {
+    "id": "0a6ecbf6-839b-4e72-8bca-d8ae7b5a1502",
+    "fullname": "Type User",
+    "email": "type_893d8304@example.com",
+    "passwordHash": "scrypt:32768:8:1$AK7nLyBq1GlmoJiO$f5cd73f263b5657c1ed1b4cbd124184b1415cb2455623088a5d3fc735424652ecfcafe19ab3dc5bcb696b44a5c029d292d2bce5c3198d496070ea5571e1d7a39",
+    "investorType": "existing",
+    "createdAt": "2026-04-23T18:20:21.457973+00:00"
+  },
+  {
+    "id": "703dd05f-c703-4add-8360-eca232705ab6",
+    "fullname": "Ram Kushwah",
+    "email": "kushwahram989@gmail.com",
+    "passwordHash": "scrypt:32768:8:1$UX9ucAXiX9Zga1jL$85821e28cc6e8a023f81974f04ada79608e737fb40cdebdb6113e57bdb3c4552a57683fbda32db7e13a7a9e432d32a2b5bfd2b86466088aefd15c98a5aa9fc32",
+    "investorType": "beginner",
+    "createdAt": "2026-04-23T18:22:22.963751+00:00"
+  }
+]

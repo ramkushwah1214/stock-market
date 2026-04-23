@@ -33,12 +33,12 @@ type HistoryPoint = {
 const fetchQuote = async (symbol: string) => {
   const encodedSymbol = encodeURIComponent(symbol);
   const candidates = [
-    `/api/quote/${encodedSymbol}`,
     `/api/yahoo/quote/${encodedSymbol}`,
-    `http://localhost:5000/api/quote/${encodedSymbol}`,
+    `/api/quote/${encodedSymbol}`,
     `http://localhost:5000/api/yahoo/quote/${encodedSymbol}`,
-    `http://127.0.0.1:5000/api/quote/${encodedSymbol}`,
+    `http://localhost:5000/api/quote/${encodedSymbol}`,
     `http://127.0.0.1:5000/api/yahoo/quote/${encodedSymbol}`,
+    `http://127.0.0.1:5000/api/quote/${encodedSymbol}`,
   ];
 
   let lastError: unknown = null;

@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 from dotenv import load_dotenv
 from werkzeug.exceptions import HTTPException
@@ -17,12 +17,14 @@ def create_app():
     if hasattr(yf, "set_tz_cache_location"):
         yf.set_tz_cache_location(str(CACHE_DIR / "yfinance"))
 
-    CORS(app, resources={r"/*": {"origins": app.config["CORS_ORIGINS"]}})
+    CORS(app, resources={r"/*": {"origins": app.config["CORS_ORIGINS"]}}, supports_credentials=True)
     app.register_blueprint(api)
 
     @app.errorhandler(404)
     def not_found(error):
-        return {"error": "Endpoint not found"}, 404
+        if request.url_rule is None:
+            return {"error": "Endpoint not found"}, 404
+        return {"error": getattr(error, "description", "Resource not found")}, 404
 
     @app.errorhandler(HTTPException)
     def http_error(error):

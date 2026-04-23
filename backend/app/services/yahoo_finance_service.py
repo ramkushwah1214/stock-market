@@ -30,10 +30,20 @@ def get_quote(symbol):
         raise NotFound(f"No quote data found for {symbol}")
 
     info = _safe_info(ticker)
+    fast_info = _safe_fast_info(ticker)
     latest = history.iloc[-1]
     previous = history.iloc[-2] if len(history) > 1 else latest
-    price = float(latest.get("Close") or 0)
-    previous_close = float(previous.get("Close") or 0)
+    price = _preferred_number(
+        _fast_info_value(fast_info, "lastPrice"),
+        info.get("regularMarketPrice"),
+        latest.get("Close"),
+    )
+    previous_close = _preferred_number(
+        _fast_info_value(fast_info, "previousClose"),
+        _fast_info_value(fast_info, "regularMarketPreviousClose"),
+        info.get("regularMarketPreviousClose"),
+        previous.get("Close"),
+    )
     change = price - previous_close
     change_percent = (change / previous_close) * 100 if previous_close else 0
 
@@ -44,14 +54,15 @@ def get_quote(symbol):
         "exchange": info.get("exchange"),
         "currency": info.get("currency"),
         "price": round(price, 2),
+        "currentPrice": round(price, 2),
         "change": round(change, 2),
         "changePercent": round(change_percent, 2),
-        "open": _number(latest.get("Open")),
-        "high": _number(latest.get("High")),
-        "low": _number(latest.get("Low")),
-        "volume": int(latest.get("Volume", 0) or 0),
+        "open": _number(_preferred_number(_fast_info_value(fast_info, "open"), info.get("regularMarketOpen"), latest.get("Open"))),
+        "high": _number(_preferred_number(_fast_info_value(fast_info, "dayHigh"), info.get("regularMarketDayHigh"), latest.get("High"))),
+        "low": _number(_preferred_number(_fast_info_value(fast_info, "dayLow"), info.get("regularMarketDayLow"), latest.get("Low"))),
+        "volume": int(_preferred_number(_fast_info_value(fast_info, "lastVolume"), info.get("regularMarketVolume"), latest.get("Volume"), default=0) or 0),
         "previousClose": round(previous_close, 2),
-        "marketCap": info.get("marketCap"),
+        "marketCap": _preferred_number(_fast_info_value(fast_info, "marketCap"), info.get("marketCap")),
         "trailingPE": info.get("trailingPE"),
         "dividendYield": info.get("dividendYield"),
         "sector": info.get("sector"),
@@ -169,6 +180,33 @@ def _safe_info(ticker):
         return ticker.info or {}
     except Exception:
         return {}
+
+
+def _safe_fast_info(ticker):
+    try:
+        return ticker.fast_info or {}
+    except Exception:
+        return {}
+
+
+def _fast_info_value(fast_info, key):
+    if fast_info is None:
+        return None
+    getter = getattr(fast_info, "get", None)
+    if callable(getter):
+        try:
+            return getter(key)
+        except Exception:
+            return None
+    return None
+
+
+def _preferred_number(*values, default=None):
+    for value in values:
+        cleaned = _clean_value(value)
+        if cleaned is not None:
+            return float(cleaned)
+    return default
 
 
 def _clean_value(value):

@@ -15,6 +15,7 @@ import Chatbot from './pages/Chatbot';
 import Settings from './pages/Settings';
 import Profile from './pages/Profile';
 import ErrorBoundary from './components/ErrorBoundary';
+import ProtectedRoute from './components/ProtectedRoute';
 import NotificationsSettings from './pages/settings/NotificationsSettings';
 import UPISettings from './pages/settings/UPISettings';
 import PasswordSettings from './pages/settings/PasswordSettings';
@@ -34,7 +35,7 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password/:token" element={<ResetPassword />} />
           
-          <Route path="/app" element={<Layout />}>
+          <Route path="/app" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/app/dashboard" replace />} />
             <Route path="dashboard" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
             <Route path="beginner" element={<BeginnerMode />} />
